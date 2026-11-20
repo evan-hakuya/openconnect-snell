@@ -46,7 +46,7 @@ run_openconnect() {
     ((stopping)) && return 0
     log "OpenConnect exited with status $status; retrying in ${delay}s"
     sleep "$delay"
-    ((delay < 60)) && delay=$((delay * 2))
+    ((delay < 10)) && delay=$((delay * 2))
   done
 }
 
