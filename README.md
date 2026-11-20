@@ -11,15 +11,16 @@ docker pull sukka/openconnect-snell:latest
 ```bash
 docker run -d \
   --privileged \
-  -e VPN_USER= \
-  -e VPN_PASSWORD= \
+  --restart unless-stopped \
+  -p 127.0.0.1:18388:8388/tcp \
+  -e VPN_USER=your-user \
+  -e VPN_PASSWORD=your-password \
   -e VPN_AUTH_CODE= \
   -e VPN_AUTH_GROUP= \
   -e VPN_SERVERCERT= \
-  -e VPN_HOST= \
+  -e VPN_HOST=vpn.example.com \
+  -e VPN_NO_DTLS=1 \
   -e SNELL_OBFS=off \
-  -p [Your Port]:8388 \
-  --restart always \
   --name openconnect-snell sukka/openconnect-snell
 ```
 
@@ -36,12 +37,30 @@ Proxy-Snell = snell, [Container IP], [Your Port], psk=password, version=4
 - `SNELL_OBFS`: Snell Server obfuscation mode. Default is `off`.
 
 - `VPN_USER`: OpenConnect Username. Required.
-- `VPN_PASSWD`: OpenConnect Password. Required.
+- `VPN_PASSWORD`: OpenConnect Password. Required.
+- `VPN_PASSWD`: Legacy alias for `VPN_PASSWORD`.
 - `VPN_HOST`: Where the OpenConnect will be connected to. Required.
 - `VPN_SERVERCERT`: OpenConnect server certificate fingerprint to trust. Useful when the server configured certificate is untrusted. Optional.
 - `VPN_AUTH_GROUP`: OpenConnect authentication group. Optional.
 - `VPN_AUTH_CODE`: OpenConnect authentication code. Optional.
 - `VPN_NO_DTLS`: Disable OpenConnect DTLS. Optional.
+
+The container keeps Snell running while OpenConnect reconnects with exponential backoff after a VPN disconnect. The container health check requires an active `tun0` interface and an OpenConnect process.
+
+Build a local image for the current architecture:
+
+```bash
+docker build -t openconnect-snell:dev .
+```
+
+Build and publish both supported architectures:
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  --tag ghcr.io/your-user/openconnect-snell:2026.11.20 \
+  --push .
+```
 
 ## License
 
