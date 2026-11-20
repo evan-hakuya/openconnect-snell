@@ -45,7 +45,9 @@ Proxy-CompanyVPN = socks5, 127.0.0.1, 18388
 - `VPN_AUTH_CODE`: OpenConnect authentication code. Optional.
 - `VPN_NO_DTLS`: Disable OpenConnect DTLS. Optional.
 
-The container keeps SOCKS5 running while OpenConnect reconnects with a maximum 10-second backoff after a VPN disconnect. The container health check requires an active `tun0` interface, an OpenConnect process, and a microsocks process.
+The container starts Dante after `tun0` is ready. Dante supports SOCKS5 TCP and UDP relay. The container health check requires an active `tun0` interface, an OpenConnect process, and a Dante process.
+
+SOCKS5 UDP uses a dynamic relay port. Use host networking or publish the relay port range in Docker. A fixed `8388/udp` mapping only covers the SOCKS5 control port.
 
 Build a local image for the current architecture:
 

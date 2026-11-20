@@ -31,35 +31,83 @@ vpn_args() {
   esac
 }
 
-socks5_args() {
-  SOCKS5_ARGS=(-i "${SOCKS5_HOST:-0.0.0.0}" -p "${SOCKS5_PORT:-8388}")
+dante_config() {
+  local config_file=$1
+  cat > "$config_file" <<EOF
+logoutput: stderr
+internal: ${SOCKS5_HOST:-0.0.0.0} port = ${SOCKS5_PORT:-8388}
+external: tun0
+user.privileged: root
+user.unprivileged: nobody
+clientmethod: none
+socksmethod: none
+client pass {
+  from: 0.0.0.0/0 to: 0.0.0.0/0
+}
+socks pass {
+  from: 0.0.0.0/0 to: 0.0.0.0/0
+  command: connect
+  log: error connect disconnect iooperation
+}
+socks pass {
+  from: 0.0.0.0/0 to: 0.0.0.0/0
+  command: udpassociate
+  log: error connect disconnect iooperation
+}
+socks pass {
+  from: 0.0.0.0/0 to: 0.0.0.0/0
+  command: bindreply udpreply
+  log: error connect disconnect iooperation
+}
+EOF
+}
 
-  if [[ -n "${SOCKS5_USER:-}" || -n "${SOCKS5_PASSWORD:-}" ]]; then
-    if [[ -z "${SOCKS5_USER:-}" || -z "${SOCKS5_PASSWORD:-}" ]]; then
-      echo 'SOCKS5_USER and SOCKS5_PASSWORD must be provided together' >&2
-      return 1
-    fi
-    SOCKS5_ARGS+=(-u "$SOCKS5_USER" -P "$SOCKS5_PASSWORD")
-  fi
+wait_for_tun() {
+  local i
+  for i in {1..30}; do
+    [[ -e /sys/class/net/tun0 ]] && return 0
+    sleep 1
+  done
+  return 1
 }
 
 run_openconnect() {
   local delay=5
   local status
+  local dante_config_file
+
+  dante_config_file=$(mktemp)
+  dante_config "$dante_config_file"
 
   while :; do
     log "connecting to $VPN_HOST"
-    if printf '%s\n%s\n' "$VPN_PASSWORD" "${VPN_AUTH_CODE:-}" | openconnect "${VPN_ARGS[@]}"; then
+    printf '%s\n%s\n' "$VPN_PASSWORD" "${VPN_AUTH_CODE:-}" | openconnect "${VPN_ARGS[@]}" &
+    openconnect_pid=$!
+
+    if wait_for_tun; then
+      danted -f "$dante_config_file" &
+      socks5_pid=$!
+      log "SOCKS5 TCP/UDP proxy started on ${SOCKS5_PORT:-8388}"
+    else
+      log 'tun0 was not created after VPN login'
+    fi
+
+    if wait "$openconnect_pid"; then
       status=0
     else
       status=$?
     fi
 
+    kill "${socks5_pid:-}" 2>/dev/null || true
+    wait "${socks5_pid:-}" 2>/dev/null || true
+    socks5_pid=''
     ((stopping)) && return 0
     log "OpenConnect exited with status $status; retrying in ${delay}s"
     sleep "$delay"
     ((delay < 10)) && delay=$((delay * 2))
   done
+
+  rm -f "$dante_config_file"
 }
 
 launch() {
@@ -67,22 +115,19 @@ launch() {
   export VPN_PASSWORD
   require_env
   vpn_args
-  socks5_args
 
   stopping=0
   cleanup() {
     stopping=1
     trap - EXIT INT TERM
-    kill "${vpn_pid:-}" "${socks5_pid:-}" 2>/dev/null || true
-    wait "${vpn_pid:-}" "${socks5_pid:-}" 2>/dev/null || true
+    kill "${supervisor_pid:-}" "${openconnect_pid:-}" "${socks5_pid:-}" 2>/dev/null || true
+    wait "${supervisor_pid:-}" "${openconnect_pid:-}" "${socks5_pid:-}" 2>/dev/null || true
   }
   trap cleanup EXIT INT TERM
 
-  microsocks "${SOCKS5_ARGS[@]}" &
-  socks5_pid=$!
   run_openconnect &
-  vpn_pid=$!
-  wait "$socks5_pid"
+  supervisor_pid=$!
+  wait "$supervisor_pid"
 }
 
 if [[ $# -eq 0 ]]; then

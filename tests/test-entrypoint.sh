@@ -14,7 +14,7 @@ fi
 exit 1
 EOF
 
-cat > "$tmpdir/microsocks" <<'EOF'
+cat > "$tmpdir/danted" <<'EOF'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "-v" ]]; then
   exit 0
@@ -22,7 +22,7 @@ fi
 exit 0
 EOF
 
-chmod +x "$tmpdir/openconnect" "$tmpdir/microsocks"
+chmod +x "$tmpdir/openconnect" "$tmpdir/danted"
 
 if PATH="$tmpdir:$PATH" timeout 3 "$entrypoint" >"$tmpdir/missing.log" 2>&1; then
   echo "expected missing credentials to fail" >&2
@@ -41,7 +41,7 @@ cat > "$MOCK_INPUT"
 exit 1
 EOF
 
-cat > "$tmpdir/microsocks" <<'EOF'
+cat > "$tmpdir/danted" <<'EOF'
 #!/usr/bin/env bash
 while :; do /bin/sleep 30; done
 EOF
@@ -52,7 +52,7 @@ printf '%s\n' "$1" >> "$MOCK_SLEEP"
 /bin/sleep 0.01
 EOF
 
-chmod +x "$tmpdir/openconnect" "$tmpdir/microsocks" "$tmpdir/sleep"
+chmod +x "$tmpdir/openconnect" "$tmpdir/danted" "$tmpdir/sleep"
 
 set +e
 PATH="$tmpdir:$PATH" \
