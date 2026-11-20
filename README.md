@@ -1,8 +1,8 @@
-# openconnect-snell
+# openconnect-socks5
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/sukka/openconnect-snell.svg)](https://hub.docker.com/r/sukka/openconnect-snell) [![Docker Stars](https://img.shields.io/docker/stars/sukka/openconnect-snell.svg)](https://hub.docker.com/r/sukka/openconnect-snell) [![Docker Automated build](https://img.shields.io/docker/automated/sukka/openconnect-snell.svg)](https://hub.docker.com/r/sukka/openconnect-snell)
 
-Allow Surge to connect to OpenConnect by running OpenConnect and Snell Server (V4) inside a docker container.
+Allow Surge to connect to OpenConnect through a SOCKS5 proxy inside a Docker container.
 
 ```bash
 docker pull sukka/openconnect-snell:latest
@@ -20,21 +20,21 @@ docker run -d \
   -e VPN_SERVERCERT= \
   -e VPN_HOST=vpn.example.com \
   -e VPN_NO_DTLS=1 \
-  -e SNELL_OBFS=off \
-  --name openconnect-snell sukka/openconnect-snell
+  -e SOCKS5_PORT=8388 \
+  --name openconnect-socks5 sukka/openconnect-snell
 ```
 
 ```conf
 [Proxy]
-Proxy-Snell = snell, [Container IP], [Your Port], psk=password, version=4
+Proxy-CompanyVPN = socks5, 127.0.0.1, 18388
 ```
 
 ## Configuration
 
-- `SNELL_HOST`: Where the Snell Server will be listened at. Default is `0.0.0.0`.
-- `SNELL_PORT`: Which Port that the Snell Server will be listened at. Default is `8388`.
-- `SNELL_PSK`: Snell Server Pre-Shared Key. Will be generated automatically when not provided.
-- `SNELL_OBFS`: Snell Server obfuscation mode. Default is `off`.
+- `SOCKS5_HOST`: SOCKS5 listen address. Default is `0.0.0.0`.
+- `SOCKS5_PORT`: SOCKS5 listen port. Default is `8388`.
+- `SOCKS5_USER`: Optional SOCKS5 username.
+- `SOCKS5_PASSWORD`: Optional SOCKS5 password.
 
 - `VPN_USER`: OpenConnect Username. Required.
 - `VPN_PASSWORD`: OpenConnect Password. Required.
@@ -45,7 +45,7 @@ Proxy-Snell = snell, [Container IP], [Your Port], psk=password, version=4
 - `VPN_AUTH_CODE`: OpenConnect authentication code. Optional.
 - `VPN_NO_DTLS`: Disable OpenConnect DTLS. Optional.
 
-The container keeps Snell running while OpenConnect reconnects with exponential backoff after a VPN disconnect. The container health check requires an active `tun0` interface and an OpenConnect process.
+The container keeps SOCKS5 running while OpenConnect reconnects with a maximum 10-second backoff after a VPN disconnect. The container health check requires an active `tun0` interface, an OpenConnect process, and a microsocks process.
 
 Build a local image for the current architecture:
 

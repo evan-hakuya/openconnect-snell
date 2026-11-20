@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 log() {
-  printf '[openconnect-snell] %s\n' "$*"
+  printf '[openconnect-socks5] %s\n' "$*"
 }
 
 require_env() {
@@ -31,6 +31,18 @@ vpn_args() {
   esac
 }
 
+socks5_args() {
+  SOCKS5_ARGS=(-i "${SOCKS5_HOST:-0.0.0.0}" -p "${SOCKS5_PORT:-8388}")
+
+  if [[ -n "${SOCKS5_USER:-}" || -n "${SOCKS5_PASSWORD:-}" ]]; then
+    if [[ -z "${SOCKS5_USER:-}" || -z "${SOCKS5_PASSWORD:-}" ]]; then
+      echo 'SOCKS5_USER and SOCKS5_PASSWORD must be provided together' >&2
+      return 1
+    fi
+    SOCKS5_ARGS+=(-u "$SOCKS5_USER" -P "$SOCKS5_PASSWORD")
+  fi
+}
+
 run_openconnect() {
   local delay=5
   local status
@@ -54,33 +66,23 @@ launch() {
   VPN_PASSWORD="${VPN_PASSWORD:-${VPN_PASSWD:-}}"
   export VPN_PASSWORD
   require_env
-
-  if [[ -z "${SNELL_PSK:-}" ]]; then
-    SNELL_PSK=$(hexdump -n 16 -e '4/4 "%08x" 1 "\n"' /dev/urandom)
-  fi
-
   vpn_args
-  umask 077
-  local config_file
-  config_file=$(mktemp)
-  printf '[snell-server]\nlisten = %s:%s\npsk = %s\nobfs = %s\n' \
-    "${SNELL_HOST:-0.0.0.0}" "${SNELL_PORT:-8388}" "$SNELL_PSK" "${SNELL_OBFS:-off}" > "$config_file"
+  socks5_args
 
   stopping=0
   cleanup() {
     stopping=1
     trap - EXIT INT TERM
-    kill "${vpn_pid:-}" "${snell_pid:-}" 2>/dev/null || true
-    wait "${vpn_pid:-}" "${snell_pid:-}" 2>/dev/null || true
-    rm -f "$config_file"
+    kill "${vpn_pid:-}" "${socks5_pid:-}" 2>/dev/null || true
+    wait "${vpn_pid:-}" "${socks5_pid:-}" 2>/dev/null || true
   }
   trap cleanup EXIT INT TERM
 
-  snell-server -c "$config_file" &
-  snell_pid=$!
+  microsocks "${SOCKS5_ARGS[@]}" &
+  socks5_pid=$!
   run_openconnect &
   vpn_pid=$!
-  wait "$snell_pid"
+  wait "$socks5_pid"
 }
 
 if [[ $# -eq 0 ]]; then
